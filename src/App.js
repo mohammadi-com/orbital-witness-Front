@@ -8,22 +8,16 @@ ChartJS.register(BarElement, CategoryScale, LinearScale, Title, Tooltip, Legend)
 
 const App = () => {
   const [data, setData] = useState([]);
+  const [originalData, setOriginalData] = useState([]);  // Store original data
   const [sortByReport, setSortByReport] = useState(null);
   const [sortByCredits, setSortByCredits] = useState(null);
 
   useEffect(() => {
+    // Fetch usage data
     axios.get('http://localhost:8000/usage').then((response) => {
       console.log(response.data); // Log the response data
       setData(response.data.usage);
-    }).catch(error => {
-      console.error("Error fetching usage data:", error);
-    });
-  }, []);
-
-  useEffect(() => {
-    // Fetch usage data
-    axios.get('http://localhost:8000/usage').then((response) => {
-      setData(response.data.usage);
+      setOriginalData(response.data.usage); // Save the original data for resetting
     });
   }, []);
 
@@ -32,30 +26,64 @@ const App = () => {
     return `${date.getDate()}-${date.getMonth() + 1}-${date.getFullYear()} ${date.getHours()}:${date.getMinutes()}`;
   };
 
-  const handleSortReport = () => {
+  const sortAscending = (key, isNumeric = false) => {
     const sortedData = [...data].sort((a, b) => {
-      if (!a.report_name) return 1;
-      if (!b.report_name) return -1;
-      return sortByReport === 'asc'
-        ? a.report_name.localeCompare(b.report_name)
-        : b.report_name.localeCompare(a.report_name);
+      if (isNumeric) return a[key] - b[key];
+      if (!a[key]) return 1;
+      if (!b[key]) return -1;
+      return a[key].localeCompare(b[key]);
     });
     setData(sortedData);
-    setSortByReport(sortByReport === 'asc' ? 'desc' : 'asc');
+  };
+
+  const sortDescending = (key, isNumeric = false) => {
+    const sortedData = [...data].sort((a, b) => {
+      if (isNumeric) return b[key] - a[key];
+      if (!a[key]) return 1;
+      if (!b[key]) return -1;
+      return b[key].localeCompare(a[key]);
+    });
+    setData(sortedData);
+  };
+
+  const resetSort = () => {
+    setData(originalData);
+  };
+
+  const handleSortReport = () => {
+    if (sortByCredits === 'asc') {
+      sortAscending('credits_used', true);
+    } else if (sortByCredits === 'desc') {
+      sortDescending('credits_used', true);
+    }
+
+    if (sortByReport === null) {
+      sortAscending('report_name');
+      setSortByReport('asc');
+    } else if (sortByReport === 'asc') {
+      sortDescending('report_name');
+      setSortByReport('desc');
+    } else {
+      if (sortByCredits === null) resetSort();
+      setSortByReport(null);
+    }
   };
 
   const handleSortCredits = () => {
-    const sortedData = [...data].sort((a, b) => {
-      return sortByCredits === 'asc'
-        ? a.credits_used - b.credits_used
-        : b.credits_used - a.credits_used;
-    });
-    setData(sortedData);
-    setSortByCredits(sortByCredits === 'asc' ? 'desc' : 'asc');
+    if (sortByCredits === null) {
+      sortAscending('credits_used', true);
+      setSortByCredits('asc');
+    } else if (sortByCredits === 'asc') {
+      sortDescending('credits_used', true);
+      setSortByCredits('desc');
+    } else {
+      if (sortByReport === null) resetSort();
+      setSortByCredits(null);
+    }
   };
 
   // Group data by date for the bar chart
-  const creditsByDate = data.reduce((acc, item) => {
+  const creditsByDate = originalData.reduce((acc, item) => {
     const date = new Date(item.timestamp).toDateString();
     acc[date] = (acc[date] || 0) + item.credits_used;
     return acc;
@@ -85,8 +113,12 @@ const App = () => {
           <tr>
             <th>Message ID</th>
             <th>Timestamp</th>
-            <th onClick={handleSortReport} style={{ cursor: 'pointer' }}>Report Name {sortByReport}</th>
-            <th onClick={handleSortCredits} style={{ cursor: 'pointer' }}>Credits Used {sortByCredits}</th>
+            <th onClick={handleSortReport} style={{ cursor: 'pointer' }}>
+              Report Name {sortByReport === 'asc' ? '▲' : sortByReport === 'desc' ? '▼' : ''}
+            </th>
+            <th onClick={handleSortCredits} style={{ cursor: 'pointer' }}>
+              Credits Used {sortByCredits === 'asc' ? '▲' : sortByCredits === 'desc' ? '▼' : ''}
+            </th>
           </tr>
         </thead>
         <tbody>
